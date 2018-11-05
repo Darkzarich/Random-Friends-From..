@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<link rel="stylesheet" href="css/bootstrap.min.css">
+	<link rel="stylesheet" href="css/index.css">
+	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
+	<meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+
+	<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
+	<script src="js/bootstrap.min.js"></script>
+	<title>Random Friends from</title>
+</head>
+<body>
+
+	<?php 
+		session_start();
+	 ?>
+
+	<nav class="navbar vk-color">
+	  <span class="navbar-brand text-light" href="#">
+	    <img src="http://icons.iconarchive.com/icons/sicons/basic-round-social/512/vkontakte-icon.png" width="30" height="30" class="d-inline-block align-top" alt="">
+	    Random Friends from...
+	  </span>
+	</nav>
+
+	<section id="user">
+		<div class="container bg-dark">
+<?php
+
+include 'config.php'; /* secret, id, url*/
+
+if ($_GET['action'] == "exit") {
+	session_unset();
+	session_destroy();
+	session_write_close();
+	setcookie(session_name(),'',0,'/');
+	session_regenerate_id(true);
+	header("Location: ".URL);
+}
+
+// this block will work only if login was successful 
+if ($_GET['code'] && !$_SESSION['code']) { 
+	$_SESSION['code'] = $_GET['code'];
+
+	if (!$_SESSION['code']) {
+		echo "Login error";
+		exit();
+	}
+
+	$token = json_decode(file_get_contents('https://oauth.vk.com/access_token?client_id='.ID.'&redirect_uri='.URL.'&client_secret='.SECRET.'&code='.$_SESSION['code']), true);
+	
+	if (!$token) {
+		echo "<a href='".URL."'".">Назад</a><br>";
+		exit('Error token');
+	}
+
+	$_SESSION['code'] = $token;
+}
+
+// this block will work only if session is not started yet
+if(!$_SESSION['code']) {
+
+?>
+			<div class="row">
+				<div class="col">
+					<a href="https://oauth.vk.com/authorize?client_id=<?=ID?>&display=page&redirect_uri=<?=URL?>&response_type=code">
+						<button type="button" class="btn vk-color btn-lg btn-block m-2 p-2 text-light">Login via VK</button>
+					</a>
+				</div>
+			</div>
+<?php } else { 
+
+$data = json_decode(file_get_contents('https://api.vk.com/method/users.get?user_id='.$_SESSION['code']['user_id'].'&access_token='.$_SESSION['code']['access_token'].'&fields=first_name,last_name,photo_50'.'&v=5.87'), true);
+
+if (!$data) {
+	echo "<a href='".URL."'".">Назад</a><br>";
+	exit('Error data');
+}
+
+	$data = $data['response'][0];
+
+?>
+			<div class="row mt-2 mb-1 p-2">
+				<div class="col-3">
+					<img src=<?php echo $data['photo_50'] ?> alt="">
+					<a href=<?php echo "'".URL."?action=exit'"; ?>><button type="button" class="btn btn-dark">Выйти</button></a>
+				</div>
+				<div class="col align-self-center">
+					<div class="text-light"><b>Вы вошли как: </b> <?php echo $data['first_name']." ".$data['last_name']?></div>
+				</div>
+			</div>		
+		</div>
+	</section>
+	<section id="results">
+		<div class="container bg-light">
+<?php 
+	$data = json_decode(file_get_contents('https://api.vk.com/method/friends.get?user_id='.$_SESSION['code']['user_id'].'&access_token='.$_SESSION['code']['access_token'].'&order=random'.'&count=5'.'&fields=uid,first_name,last_name,sex,city,photo_big,online'.'&v=5.87'), true);
+
+	if (!$data) {
+		echo "<a href='".URL."'".">Назад</a><br>";
+		exit('Error data');
+	}
+
+	$data = $data['response']['items'];
+
+	foreach ($data as $key => $value) {
+?>
+			<div class="row p-5 border">
+				<div class="col-3"><img src=<?php echo "'".$value['photo_big']."'" ?> alt="" class="rounded img-fluid"></div>
+				<div class="col">
+						<p><b><?php echo $value['first_name']." ".$value['last_name']?></b> [ID: <?php echo $value['id'] ?>]</p>
+						<p>Пол: <?php if($value['sex'] == '1') {echo "женский";} else {echo "мужской";} ?></p>
+						<p>Город: <?php echo $value['city']['title'] ?></p>
+						<p>Статус: <?php if($value['online'] == '0') {echo "оффлайн";} else {echo "онлайн";} ?></p>
+				</div>
+			</div>
+<?php  
+
+	}
+ ?>
+		</div>
+	</section>
+<?php } ?>
+</body>
+</html>
